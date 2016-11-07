@@ -104,9 +104,9 @@ void moloch_packet_data_free(MolochPacket_t *packet)
 {
     uint32_t fThread = packet->hash % config.packetThreads;
     if (packet->copied) {
-        if (packet->pktlen < 256)
+        if (packet->pktlen <= 256)
             moloch_allocator_free(packetDataAllocator256, fThread, packet->pkt);
-        else if (packet->pktlen < 1600)
+        else if (packet->pktlen <= 1600)
             moloch_allocator_free(packetDataAllocator1600, fThread, packet->pkt);
         else
             free(packet->pkt);
@@ -876,8 +876,8 @@ void moloch_packet_frags_process(MolochPacketBatch_t *batch, MolochPacket_t * co
     }
 
     // Now alloc the full packet
-    packet->pktlen = packet->payloadOffset + payloadLen;
-    uint8_t *pkt = moloch_packet_data_alloc(batch->aThread, packet->pktlen);
+    int pktlen = packet->payloadOffset + payloadLen;
+    uint8_t *pkt = moloch_packet_data_alloc(batch->aThread, pktlen);
     memcpy(pkt, packet->pkt, packet->payloadOffset);
 
     // Fix header of new packet
@@ -896,6 +896,7 @@ void moloch_packet_frags_process(MolochPacketBatch_t *batch, MolochPacket_t * co
     // Set all the vars in the current packet to new defraged packet
     if (packet->copied)
         moloch_packet_data_free(packet);
+    packet->pktlen = pktlen;
     packet->pkt = pkt;
     packet->copied = 1;
     packet->wasfrag = 1;
