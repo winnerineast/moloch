@@ -327,6 +327,7 @@ typedef struct moloch_config {
     uint32_t  maxFrags;
 
     int       packetThreads;
+    int       interfaceCnt;
 
     char      logUnknownProtocols;
     char      logESRequests;
@@ -408,6 +409,7 @@ typedef struct
 typedef struct
 {
     MolochPacketHead_t    packetQ[MOLOCH_MAX_PACKET_THREADS];
+    int                   aThread;
 } MolochPacketBatch_t;
 /******************************************************************************/
 typedef struct moloch_tcp_data {
@@ -812,11 +814,11 @@ uint64_t moloch_packet_dropped_frags();
 uint64_t moloch_packet_dropped_overload();
 void     moloch_packet_thread_wake(int thread);
 void     moloch_packet_flush();
-void     moloch_packet(MolochPacket_t * const packet);
 void     moloch_packet_process_data(MolochSession_t *session, const uint8_t *data, int len, int which);
 void     moloch_packet_add_packet_ip(char *ip, int mode);
+void     moloch_packet_set_num_reader_threads(int threads);
 
-void     moloch_packet_batch_init(MolochPacketBatch_t *batch);
+void     moloch_packet_batch_init(MolochPacketBatch_t *batch, int aThread);
 void     moloch_packet_batch_flush(MolochPacketBatch_t *batch);
 void     moloch_packet_batch(MolochPacketBatch_t * batch, MolochPacket_t * const packet);
 
@@ -1012,3 +1014,14 @@ void *moloch_trie_del_reverse(MolochTrie_t *trie, const char *key, const int len
  * js0n.c
  */
 int js0n(unsigned char *js, unsigned int len, unsigned int *out);
+
+/******************************************************************************/
+/*
+ * allocator.c
+ */
+typedef struct molochallocator_t MolochAllocator_t;
+void *moloch_allocator_alloc(MolochAllocator_t *allocator, int thread);
+MolochAllocator_t *moloch_allocator_create(int aThreads, int fThreads, int size);
+void *moloch_allocator_alloc(MolochAllocator_t *allocator, int aThread);
+void moloch_allocator_free(MolochAllocator_t *allocator, int fThread, void *item);
+

@@ -31,6 +31,7 @@ MolochReaderStats  moloch_reader_stats;
 MolochReaderFilter moloch_reader_should_filter;
 MolochReaderStop   moloch_reader_stop;
 
+extern MolochAllocator_t   *packetAllocator;
 
 /******************************************************************************/
 void moloch_readers_set(char *name) {
@@ -46,6 +47,8 @@ void moloch_readers_set(char *name) {
     }
     MolochReaderInit func = str->uw;
     func(name);
+    if (!packetAllocator)
+        LOG("reader %s didn't set packetAllocator", name);
 }
 /******************************************************************************/
 void moloch_readers_add(char *name, MolochReaderInit func) {

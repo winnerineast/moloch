@@ -40,6 +40,8 @@ void reader_libpcapfile_opened();
 LOCAL struct bpf_program   *bpf_programs[MOLOCH_FILTER_MAX];
 LOCAL MolochPacketBatch_t   batch;
 
+extern MolochAllocator_t   *packetAllocator;
+
 /******************************************************************************/
 void reader_libpcapfile_monitor_dir(char *dirname);
 static void
@@ -325,7 +327,7 @@ int reader_libpcapfile_stats(MolochReaderStats_t *stats)
 /******************************************************************************/
 void reader_libpcapfile_pcap_cb(u_char *UNUSED(user), const struct pcap_pkthdr *h, const u_char *bytes)
 {
-    MolochPacket_t *packet = MOLOCH_TYPE_ALLOC0(MolochPacket_t);
+    MolochPacket_t *packet = moloch_allocator_alloc(packetAllocator, 0);
 
     if (unlikely(h->caplen != h->len)) {
         if (!config.readTruncatedPackets) {
@@ -363,7 +365,7 @@ gboolean reader_libpcapfile_read()
         return TRUE;
     }
 
-    moloch_packet_batch_init(&batch);
+    moloch_packet_batch_init(&batch, 0);
     int r = pcap_dispatch(pcap, 10000, reader_libpcapfile_pcap_cb, NULL);
     moloch_packet_batch_flush(&batch);
 
@@ -479,6 +481,7 @@ void reader_libpcapfile_init(char *UNUSED(name))
 {
     moloch_reader_start         = reader_libpcapfile_start;
     moloch_reader_stats         = reader_libpcapfile_stats;
+    packetAllocator = moloch_allocator_create(1, config.packetThreads, sizeof(MolochPacket_t));
 
     if (config.pcapMonitor)
         reader_libpcapfile_init_monitor();

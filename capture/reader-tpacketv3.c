@@ -72,6 +72,8 @@ LOCAL MOLOCH_LOCK_DEFINE(gStats);
 LOCAL int nextPos;
 LOCAL MOLOCH_LOCK_DEFINE(nextPos);
 
+extern MolochAllocator_t   *packetAllocator;
+
 /******************************************************************************/
 int reader_tpacketv3_stats(MolochReaderStats_t *stats)
 {
@@ -111,6 +113,7 @@ static void *reader_tpacketv3_thread(gpointer tinfov)
 {
     long tinfo = (long)tinfov;
     int info = tinfo >> 8;
+    int aThread = info * numThreads + (tinfo & 0xff);
     struct pollfd pfd;
     int pos = -1;
 
@@ -155,7 +158,7 @@ static void *reader_tpacketv3_thread(gpointer tinfov)
 
         struct tpacket3_hdr *th;
 
-        moloch_packet_batch_init(&batch);
+        moloch_packet_batch_init(&batch, aThread);
         th = (struct tpacket3_hdr *) ((uint8_t *) tbd + tbd->hdr.bh1.offset_to_first_pkt);
         uint16_t p;
         for (p = 0; p < tbd->hdr.bh1.num_pkts; p++) {
@@ -165,7 +168,7 @@ static void *reader_tpacketv3_thread(gpointer tinfov)
                     th->tp_snaplen, th->tp_len);
             }
 
-            MolochPacket_t *packet = MOLOCH_TYPE_ALLOC0(MolochPacket_t);
+            MolochPacket_t *packet = moloch_allocator_alloc(packetAllocator, aThread);
             packet->pkt           = (u_char *)th + th->tp_mac;
             packet->pktlen        = th->tp_len;
             packet->ts.tv_sec     = th->tp_sec;
@@ -308,6 +311,8 @@ void reader_tpacketv3_init(char *UNUSED(name))
     if (i == MAX_INTERFACES) {
         LOGEXIT("Only support up to %d interfaces", MAX_INTERFACES);
     }
+
+    packetAllocator = moloch_allocator_create(config.interfaceCnt * numThreads, config.packetThreads, sizeof(MolochPacket_t));
 
     moloch_reader_start         = reader_tpacketv3_start;
     moloch_reader_stop          = reader_tpacketv3_stop;

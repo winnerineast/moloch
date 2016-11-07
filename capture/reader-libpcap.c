@@ -30,6 +30,8 @@ static pcap_t               *pcaps[MAX_INTERFACES];
 
 static struct bpf_program   *bpf_programs[MOLOCH_FILTER_MAX];
 
+extern MolochAllocator_t   *packetAllocator;
+
 /******************************************************************************/
 int reader_libpcap_stats(MolochReaderStats_t *stats)
 {
@@ -50,8 +52,10 @@ int reader_libpcap_stats(MolochReaderStats_t *stats)
     return 0;
 }
 /******************************************************************************/
-void reader_libpcap_pcap_cb(u_char *batch, const struct pcap_pkthdr *h, const u_char *bytes)
+void reader_libpcap_pcap_cb(u_char *batchv, const struct pcap_pkthdr *h, const u_char *bytes)
 {
+    MolochPacketBatch_t *batch = (MolochPacketBatch_t *)batchv;
+
     if (unlikely(h->caplen != h->len)) {
         LOG("ERROR - Moloch requires full packet captures caplen: %d pktlen: %d\n"
             "turning offloading off may fix, something like 'ethtool -K INTERFACE tx off sg off gro off gso off lro off tso off'", 
@@ -59,7 +63,7 @@ void reader_libpcap_pcap_cb(u_char *batch, const struct pcap_pkthdr *h, const u_
         exit (0);
     }
 
-    MolochPacket_t *packet = MOLOCH_TYPE_ALLOC0(MolochPacket_t);
+    MolochPacket_t *packet = moloch_allocator_alloc(packetAllocator, batch->aThread);
 
     packet->pkt           = (u_char *)bytes;
     packet->ts            = h->ts;
@@ -68,14 +72,15 @@ void reader_libpcap_pcap_cb(u_char *batch, const struct pcap_pkthdr *h, const u_
     moloch_packet_batch((MolochPacketBatch_t *)batch, packet);
 }
 /******************************************************************************/
-static void *reader_libpcap_thread(gpointer pcapv)
+static void *reader_libpcap_thread(gpointer threadv)
 {
-    pcap_t *pcap = pcapv;
+    int thread = (long)threadv;
+    pcap_t *pcap = pcaps[thread];
     LOG("THREAD %p", (gpointer)pthread_self());
 
     LOCAL MolochPacketBatch_t   batch;
     while (1) {
-        moloch_packet_batch_init(&batch);
+        moloch_packet_batch_init(&batch, thread);
         int r = pcap_dispatch(pcap, 10000, reader_libpcap_pcap_cb, (u_char*)&batch);
         moloch_packet_batch_flush(&batch);
 
@@ -153,7 +158,7 @@ void reader_libpcap_start() {
 
         char name[100];
         snprintf(name, sizeof(name), "moloch-pcap%d", i);
-        g_thread_new(name, &reader_libpcap_thread, (gpointer)pcaps[i]);
+        g_thread_new(name, &reader_libpcap_thread, (gpointer)(long)i);
     }
 }
 /******************************************************************************/
@@ -218,6 +223,11 @@ void reader_libpcap_init(char *UNUSED(name))
 
     int i;
 
+    if (config.interfaceCnt > MAX_INTERFACES) {
+        LOG("Only support up to %d interfaces", MAX_INTERFACES);
+        exit(1);
+    }
+
     for (i = 0; i < MAX_INTERFACES && config.interface[i]; i++) {
 
 #ifdef SNF
@@ -234,10 +244,8 @@ void reader_libpcap_init(char *UNUSED(name))
         pcap_setnonblock(pcaps[i], FALSE, errbuf);
     }
 
-    if (i == MAX_INTERFACES) {
-        LOG("Only support up to %d interfaces", MAX_INTERFACES);
-        exit(1);
-    }
+
+    packetAllocator = moloch_allocator_create(config.interfaceCnt, config.packetThreads, sizeof(MolochPacket_t));
 
     moloch_reader_start         = reader_libpcap_start;
     moloch_reader_stop          = reader_libpcap_stop;

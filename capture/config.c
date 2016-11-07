@@ -367,6 +367,8 @@ void moloch_config_load()
     config.parsersDir       = moloch_config_str_list(keyfile, "parsersDir", " /data/moloch/parsers ; ./parsers ");
     char *offlineRegex      = moloch_config_str(keyfile, "offlineFilenameRegex", "(?i)\\.(pcap|cap)$");
 
+    for (config.interfaceCnt = 0; config.interface[config.interfaceCnt]; config.interfaceCnt++);
+
     config.offlineRegex     = g_regex_new(offlineRegex, 0, 0, &error);
     if (!config.offlineRegex || error) {
         printf("Couldn't parse offlineRegex (%s) %s\n", offlineRegex, (error?error->message:""));

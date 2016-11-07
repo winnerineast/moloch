@@ -47,6 +47,7 @@ LOCAL uint64_t               droppedFrags;
 time_t                       lastPacketSecs[MOLOCH_MAX_PACKET_THREADS];
 
 LOCAL patricia_tree_t       *ipTree = 0;
+MolochAllocator_t           *packetAllocator;
 
 /******************************************************************************/
 extern MolochSessionHead_t   tcpWriteQ[MOLOCH_MAX_PACKET_THREADS];
@@ -92,7 +93,9 @@ void moloch_packet_free(MolochPacket_t *packet)
         free(packet->pkt);
     }
     packet->pkt = 0;
-    MOLOCH_TYPE_FREE(MolochPacket_t, packet);
+
+    uint32_t fThread = packet->hash % config.packetThreads;
+    moloch_allocator_free(packetAllocator, fThread, packet);
 }
 /******************************************************************************/
 void moloch_packet_tcp_free(MolochSession_t *session)
@@ -1222,10 +1225,11 @@ int moloch_packet_ether(MolochPacketBatch_t * batch, MolochPacket_t * const pack
     return 0;
 }
 /******************************************************************************/
-void moloch_packet_batch_init(MolochPacketBatch_t *batch)
+void moloch_packet_batch_init(MolochPacketBatch_t *batch, int aThread)
 {
     int t;
 
+    batch->aThread = aThread;
     for (t = 0; t < config.packetThreads; t++) {
         DLL_INIT(packet_, &batch->packetQ[t]);
     }
@@ -1276,11 +1280,6 @@ void moloch_packet_batch(MolochPacketBatch_t * batch, MolochPacket_t * const pac
     if (rc) {
         moloch_packet_free(packet);
     }
-}
-/******************************************************************************/
-void moloch_packet(MolochPacket_t * const packet)
-{
-    moloch_packet_batch(NULL, packet);
 }
 /******************************************************************************/
 int moloch_packet_outstanding()
