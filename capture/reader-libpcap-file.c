@@ -481,7 +481,7 @@ void reader_libpcapfile_init(char *UNUSED(name))
 {
     moloch_reader_start         = reader_libpcapfile_start;
     moloch_reader_stats         = reader_libpcapfile_stats;
-    packetAllocator = moloch_allocator_create(1, config.packetThreads, sizeof(MolochPacket_t));
+    moloch_packet_set_num_reader_threads(1);
 
     if (config.pcapMonitor)
         reader_libpcapfile_init_monitor();

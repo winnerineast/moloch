@@ -37,7 +37,7 @@
 #define UNUSED(x) x __attribute((unused))
 
 
-#define MOLOCH_API_VERSION 16
+#define MOLOCH_API_VERSION 17
 
 #define MOLOCH_SESSIONID_LEN 37
 
@@ -1030,17 +1030,18 @@ typedef struct {
 } MolochAllocatorListHead_t;
 
 typedef struct molochallocator_t {
-    int aThreads;
-    int fThreads;
-    int size;
-    int fPos;
+    int      aThreads;
+    int      fThreads;
+    int      size;
+    int      fPos;
+    gboolean zero;
     MolochAllocatorListHead_t *aLists;
     MolochAllocatorListHead_t *fLists;
     MOLOCH_LOCK_EXTERN(lock);
 } MolochAllocator_t;
 
 void *moloch_allocator_alloc(MolochAllocator_t *allocator, int thread);
-MolochAllocator_t *moloch_allocator_create(int aThreads, int fThreads, int size);
+MolochAllocator_t *moloch_allocator_create(int aThreads, int fThreads, int size, int initial, gboolean zero);
 void *moloch_allocator_alloc(MolochAllocator_t *allocator, int aThread);
 void moloch_allocator_free(MolochAllocator_t *allocator, int fThread, void *item);
 

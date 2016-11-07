@@ -49,6 +49,9 @@ time_t                       lastPacketSecs[MOLOCH_MAX_PACKET_THREADS];
 LOCAL patricia_tree_t       *ipTree = 0;
 MolochAllocator_t           *packetAllocator;
 
+LOCAL MolochAllocator_t           *packetDataAllocator256;
+LOCAL MolochAllocator_t           *packetDataAllocator1600;
+
 /******************************************************************************/
 extern MolochSessionHead_t   tcpWriteQ[MOLOCH_MAX_PACKET_THREADS];
 
@@ -87,14 +90,37 @@ MolochFragsHash_t          fragsHash;
 MolochFragsHead_t          fragsList;
 
 /******************************************************************************/
+uint8_t *moloch_packet_data_alloc(int aThread, int len)
+{
+    if (len <= 256)
+        return moloch_allocator_alloc(packetDataAllocator256, aThread);
+    else if (len <= 1600)
+        return moloch_allocator_alloc(packetDataAllocator1600, aThread);
+    else
+        return malloc(len);
+}
+/******************************************************************************/
+void moloch_packet_data_free(MolochPacket_t *packet)
+{
+    uint32_t fThread = packet->hash % config.packetThreads;
+    if (packet->copied) {
+        if (packet->pktlen < 256)
+            moloch_allocator_free(packetDataAllocator256, fThread, packet->pkt);
+        else if (packet->pktlen < 1600)
+            moloch_allocator_free(packetDataAllocator1600, fThread, packet->pkt);
+        else
+            free(packet->pkt);
+    }
+}
+/******************************************************************************/
 void moloch_packet_free(MolochPacket_t *packet)
 {
+    uint32_t fThread = packet->hash % config.packetThreads;
     if (packet->copied) {
-        free(packet->pkt);
+        moloch_packet_data_free(packet);
     }
     packet->pkt = 0;
 
-    uint32_t fThread = packet->hash % config.packetThreads;
     moloch_allocator_free(packetAllocator, fThread, packet);
 }
 /******************************************************************************/
@@ -851,7 +877,7 @@ void moloch_packet_frags_process(MolochPacketBatch_t *batch, MolochPacket_t * co
 
     // Now alloc the full packet
     packet->pktlen = packet->payloadOffset + payloadLen;
-    uint8_t *pkt = malloc(packet->pktlen);
+    uint8_t *pkt = moloch_packet_data_alloc(batch->aThread, packet->pktlen);
     memcpy(pkt, packet->pkt, packet->payloadOffset);
 
     // Fix header of new packet
@@ -869,7 +895,7 @@ void moloch_packet_frags_process(MolochPacketBatch_t *batch, MolochPacket_t * co
 
     // Set all the vars in the current packet to new defraged packet
     if (packet->copied)
-        free(packet->pkt);
+        moloch_packet_data_free(packet);
     packet->pkt = pkt;
     packet->copied = 1;
     packet->wasfrag = 1;
@@ -885,7 +911,7 @@ void moloch_packet_frags4(MolochPacketBatch_t *batch, MolochPacket_t * const pac
     MolochFrags_t *frags;
 
     // ALW - Should change frags_process to make the copy when needed
-    uint8_t *pkt = malloc(packet->pktlen);
+    uint8_t *pkt = moloch_packet_data_alloc(batch->aThread, packet->pktlen);
     memcpy(pkt, packet->pkt, packet->pktlen);
     packet->pkt = pkt;
     packet->copied = 1;
@@ -966,7 +992,7 @@ int moloch_packet_ip(MolochPacketBatch_t *batch, MolochPacket_t * const packet, 
     }
 
     if (!packet->copied) {
-        uint8_t *pkt = malloc(packet->pktlen);
+        uint8_t *pkt = moloch_packet_data_alloc(batch->aThread, packet->pktlen);
         memcpy(pkt, packet->pkt, packet->pktlen);
         packet->pkt = pkt;
         packet->copied = 1;
@@ -1425,6 +1451,18 @@ void moloch_packet_init()
 
     moloch_add_can_quit(moloch_packet_outstanding, "packet outstanding");
     moloch_add_can_quit(moloch_packet_frags_outstanding, "packet frags outstanding");
+}
+/******************************************************************************/
+void moloch_packet_set_num_reader_threads(int num) {
+    if (config.tests) {
+        packetAllocator = moloch_allocator_create(num, config.packetThreads, sizeof(MolochPacket_t), 0x1000, TRUE);
+        packetDataAllocator256 = moloch_allocator_create(num, config.packetThreads, 256, 0x1000, FALSE);
+        packetDataAllocator1600 = moloch_allocator_create(num, config.packetThreads, 1600, 0x1000, FALSE);
+    } else {
+        packetAllocator = moloch_allocator_create(num, config.packetThreads, sizeof(MolochPacket_t), 0x100000, TRUE);
+        packetDataAllocator256 = moloch_allocator_create(num, config.packetThreads, 256, 0x100000, FALSE);
+        packetDataAllocator1600 = moloch_allocator_create(num, config.packetThreads, 1600, 0x100000, FALSE);
+    }
 }
 /******************************************************************************/
 uint64_t moloch_packet_dropped_packets()

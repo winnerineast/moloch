@@ -245,7 +245,7 @@ void reader_libpcap_init(char *UNUSED(name))
     }
 
 
-    packetAllocator = moloch_allocator_create(config.interfaceCnt, config.packetThreads, sizeof(MolochPacket_t));
+    moloch_packet_set_num_reader_threads(config.interfaceCnt);
 
     moloch_reader_start         = reader_libpcap_start;
     moloch_reader_stop          = reader_libpcap_stop;

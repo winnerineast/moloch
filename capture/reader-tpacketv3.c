@@ -312,7 +312,7 @@ void reader_tpacketv3_init(char *UNUSED(name))
         LOGEXIT("Only support up to %d interfaces", MAX_INTERFACES);
     }
 
-    packetAllocator = moloch_allocator_create(config.interfaceCnt * numThreads, config.packetThreads, sizeof(MolochPacket_t));
+    moloch_packet_set_num_reader_threads(config.interfaceCnt * numThreads);
 
     moloch_reader_start         = reader_tpacketv3_start;
     moloch_reader_stop          = reader_tpacketv3_stop;

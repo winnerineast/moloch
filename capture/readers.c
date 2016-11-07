@@ -48,7 +48,7 @@ void moloch_readers_set(char *name) {
     MolochReaderInit func = str->uw;
     func(name);
     if (!packetAllocator)
-        LOG("reader %s didn't set packetAllocator", name);
+        LOG("reader %s didn't call moloch_packet_set_num_reader_threads", name);
 }
 /******************************************************************************/
 void moloch_readers_add(char *name, MolochReaderInit func) {
