@@ -1019,7 +1019,26 @@ int js0n(unsigned char *js, unsigned int len, unsigned int *out);
 /*
  * allocator.c
  */
-typedef struct molochallocator_t MolochAllocator_t;
+typedef struct mal_t {
+    struct mal_t       *mal_next, *mal_prev;
+} MolochAllocatorList_t;
+
+typedef struct {
+    struct mal_t       *mal_next, *mal_prev;
+    int                 mal_count;
+    MOLOCH_LOCK_EXTERN(lock);
+} MolochAllocatorListHead_t;
+
+typedef struct molochallocator_t {
+    int aThreads;
+    int fThreads;
+    int size;
+    int fPos;
+    MolochAllocatorListHead_t *aLists;
+    MolochAllocatorListHead_t *fLists;
+    MOLOCH_LOCK_EXTERN(lock);
+} MolochAllocator_t;
+
 void *moloch_allocator_alloc(MolochAllocator_t *allocator, int thread);
 MolochAllocator_t *moloch_allocator_create(int aThreads, int fThreads, int size);
 void *moloch_allocator_alloc(MolochAllocator_t *allocator, int aThread);
