@@ -70,7 +70,6 @@ void *moloch_allocator_alloc(MolochAllocator_t *allocator, int aThread)
 
     MOLOCH_LOCK(allocator->lock);
     if (DLL_COUNT(mal_, &allocator->fLists[allocator->fPos])) {
-        LOG("ALW shuffle %d %d %d", aThread, allocator->fPos, DLL_COUNT(mal_, &allocator->fLists[allocator->fPos]));
         MOLOCH_LOCK(allocator->fLists[allocator->fPos].lock);
         DLL_PUSH_TAIL_DLL(mal_, &allocator->aLists[aThread], &allocator->fLists[allocator->fPos]);
         MOLOCH_UNLOCK(allocator->fLists[allocator->fPos].lock);
