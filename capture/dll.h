@@ -14,7 +14,6 @@
 #ifndef _DLL_HEADER
 #define _DLL_HEADER
 
-
 #define DLL_INIT(name,head) \
     ((head)->name##count = 0, \
      (head)->name##next = (head)->name##prev = (void *)head \
@@ -114,5 +113,19 @@
            (element) != (void *)(head); \
            (element) = (temp), (temp) = (temp)->name##prev)
 
+#define SLL_PUSH_HEAD(name,head,element) ((element)->name##next = (head), (head)=(element))
+#define SLL_POP_HEAD(name,head,element) do { \
+    if (head) { element = head; (head) = (head)->name##next; } \
+    else { element = NULL; } \
+} while (0)
+
+
+//        ((head ? (element = (head), (head) = (head)->name##next) : element = NULL)
+//
+//
+#define SLL_FOREACH(name,head,element) \
+      for ((element) = (head); \
+           (element); \
+           (element)=(element)->name##next)
 
 #endif

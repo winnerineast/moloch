@@ -29,7 +29,7 @@ void moloch_allocator_make(MolochAllocator_t *allocator, int aThread, int number
         memset(buf, 0, allocator->size*number);
     for (i = 0; i < number; i++) {
         MolochAllocatorList_t *item = (MolochAllocatorList_t *)(buf + (allocator->size*i));
-        DLL_PUSH_TAIL(mal_, &allocator->aLists[aThread], item);
+        SLL_PUSH_HEAD(mal_, allocator->aLists[aThread].mal_head, item);
     }
 }
 
@@ -48,14 +48,14 @@ MolochAllocator_t *moloch_allocator_create(int aThreads, int fThreads, int size,
 
     allocator->aLists = malloc(aThreads*sizeof(MolochAllocatorListHead_t));
     for (i = 0; i < aThreads; i++) {
-        DLL_INIT(mal_, &allocator->aLists[i]);
+        allocator->aLists[i].mal_head = NULL;
         MOLOCH_LOCK_INIT(allocator->aLists[i].lock);
         moloch_allocator_make(allocator, i, initial);
     }
 
     allocator->fLists = malloc(fThreads*sizeof(MolochAllocatorListHead_t));
     for (i = 0; i < fThreads; i++) {
-        DLL_INIT(mal_, &allocator->fLists[i]);
+        allocator->fLists[i].mal_head = NULL;
         MOLOCH_LOCK_INIT(allocator->fLists[i].lock);
     }
 
@@ -66,15 +66,15 @@ MolochAllocator_t *moloch_allocator_create(int aThreads, int fThreads, int size,
 void *moloch_allocator_alloc(MolochAllocator_t *allocator, int aThread)
 {
     MolochAllocatorList_t *mal;
-    DLL_POP_HEAD(mal_, &allocator->aLists[aThread], mal);
+    SLL_POP_HEAD(mal_, allocator->aLists[aThread].mal_head, mal);
     if (mal)
         return mal;
 
     MOLOCH_LOCK(allocator->lock);
-    if (DLL_COUNT(mal_, &allocator->fLists[allocator->fPos]) > 10) {
+    if (allocator->fLists[allocator->fPos].mal_head) {
         MOLOCH_LOCK(allocator->fLists[allocator->fPos].lock);
-        DLL_PUSH_TAIL_DLL(mal_, &allocator->aLists[aThread], &allocator->fLists[allocator->fPos]);
-        MOLOCH_UNLOCK(allocator->fLists[allocator->fPos].lock);
+        allocator->aLists[aThread].mal_head = allocator->fLists[allocator->fPos].mal_head;
+        allocator->fLists[allocator->fPos].mal_head = NULL;
         allocator->fPos = (allocator->fPos + 1) % allocator->fThreads;
         MOLOCH_UNLOCK(allocator->lock);
     } else {
@@ -82,7 +82,7 @@ void *moloch_allocator_alloc(MolochAllocator_t *allocator, int aThread)
         MOLOCH_UNLOCK(allocator->lock);
         moloch_allocator_make(allocator, aThread, 65536);
     }
-    DLL_POP_HEAD(mal_, &allocator->aLists[aThread], mal);
+    SLL_POP_HEAD(mal_, allocator->aLists[aThread].mal_head, mal);
     return mal;
 }
 
@@ -92,7 +92,7 @@ void moloch_allocator_free(MolochAllocator_t *allocator, int fThread, void *item
     if (allocator->zero)
         memset(item, 0, allocator->size);
     MOLOCH_LOCK(allocator->fLists[fThread].lock);
-    DLL_PUSH_TAIL(mal_, &allocator->fLists[fThread], (MolochAllocatorList_t*)item);
+    SLL_PUSH_HEAD(mal_, allocator->fLists[fThread].mal_head, (MolochAllocatorList_t*)item);
     MOLOCH_UNLOCK(allocator->fLists[fThread].lock);
 }
 

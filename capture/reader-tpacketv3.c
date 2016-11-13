@@ -289,7 +289,7 @@ void reader_tpacketv3_init(char *UNUSED(name))
             LOGEXIT("Error setting SO_ATTACH_FILTER: %s", strerror(errno));
 
         infos[i].map = mmap64(NULL, infos[i].req.tp_block_size * infos[i].req.tp_block_nr,
-                             PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, infos[i].fd, 0);
+                             PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED | MAP_NORESERVE, infos[i].fd, 0);
         infos[i].rd = malloc(infos[i].req.tp_block_nr * sizeof(*infos[i].rd));
 
         uint16_t j;

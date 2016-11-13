@@ -1020,12 +1020,11 @@ int js0n(unsigned char *js, unsigned int len, unsigned int *out);
  * allocator.c
  */
 typedef struct mal_t {
-    struct mal_t       *mal_next, *mal_prev;
+    struct mal_t       *mal_next;
 } MolochAllocatorList_t;
 
 typedef struct {
-    struct mal_t       *mal_next, *mal_prev;
-    int                 mal_count;
+    struct mal_t       *mal_head;
     MOLOCH_LOCK_EXTERN(lock);
 } MolochAllocatorListHead_t;
 
