@@ -583,6 +583,20 @@ typedef struct {
 #define unlikely(x)     __builtin_expect((x),0)
 #endif
 
+typedef struct moloch_packet_tuple {
+    struct moloch_packet_tuple *tuple_next, *tuple_prev;
+    char                       *sessionId;
+    uint32_t                    tuple_hash;
+    uint32_t                    tuple_bucket;
+} MolochPacketTuple_t;
+
+typedef struct {
+    struct moloch_packet_tuple *tuple_next, *tuple_prev;
+    int                         tuple_bucket;
+    int                         tuple_count;
+    MOLOCH_LOCK_EXTERN(lock);
+} MolochPacketTupleHead_t;
+
 /******************************************************************************/
 /*
  * Callback function definitions
@@ -845,6 +859,8 @@ void     moloch_packet_thread_wake(int thread);
 void     moloch_packet_flush();
 void     moloch_packet_process_data(MolochSession_t *session, const uint8_t *data, int len, int which);
 void     moloch_packet_add_packet_ip(char *ip, int mode);
+void     moloch_packet_tuple_add(int hash, char *sessionId);
+void     moloch_packet_tuple_remove(int hash, char *sessionId);
 
 void     moloch_packet_batch_init(MolochPacketBatch_t *batch);
 void     moloch_packet_batch_flush(MolochPacketBatch_t *batch);

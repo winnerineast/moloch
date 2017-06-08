@@ -937,6 +937,7 @@ void moloch_field_ops_run(MolochSession_t *session, MolochFieldOps_t *ops)
             switch (op->fieldPos) {
             case MOLOCH_FIELD_SPECIAL_STOP_SPI:
                 session->stopSPI = op->strLenOrInt;
+                moloch_packet_tuple_add(session->h_hash, session->sessionId);
                 break;
             case MOLOCH_FIELD_SPECIAL_STOP_PCAP:
                 session->stopSaving = op->strLenOrInt;

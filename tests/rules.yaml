@@ -9,7 +9,7 @@
 #     fieldSet         - check when a field is set
 #     beforeMiddleSave - before doing a mid save
 #     beforeFinalSave  - before doing a final save
-#     beforBothSave    - before either a mid or final save
+#     beforeBothSave    - before either a mid or final save
 #
 #One of the following 2:
 #   bpf:               - A bpf expression
@@ -44,3 +44,4 @@ rules:
 #        - 00:11:f5:13:d7:a3
     ops:
       "protocols": "tlsrulestest"
+#      "_dontSaveSPI": 1

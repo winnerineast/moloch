@@ -48,6 +48,7 @@ time_t                       lastPacketSecs[MOLOCH_MAX_PACKET_THREADS];
 int                          inProgress[MOLOCH_MAX_PACKET_THREADS];
 
 LOCAL patricia_tree_t       *ipTree = 0;
+LOCAL HASH_VAR(tuple_, tupleHash, MolochPacketTupleHead_t, 19991);
 
 /******************************************************************************/
 extern MolochSessionHead_t   tcpWriteQ[MOLOCH_MAX_PACKET_THREADS];
@@ -83,6 +84,7 @@ typedef HASH_VAR(h_, MolochFragsHash_t, MolochFragsHead_t, 199337);
 MolochFragsHash_t          fragsHash;
 MolochFragsHead_t          fragsList;
 
+int moloch_packet_tuple_find(int hash, const char * const sessionId);
 /******************************************************************************/
 void moloch_packet_free(MolochPacket_t *packet)
 {
@@ -202,8 +204,7 @@ void moloch_packet_process_udp(MolochSession_t * const session, MolochPacket_t *
         session->firstBytesLen[packet->direction] = MIN(8, len);
         memcpy(session->firstBytes[packet->direction], data, session->firstBytesLen[packet->direction]);
 
-        if (!session->stopSPI)
-            moloch_parsers_classify_udp(session, data, len, packet->direction);
+        moloch_parsers_classify_udp(session, data, len, packet->direction);
     }
 
     int i;
@@ -216,7 +217,7 @@ void moloch_packet_process_udp(MolochSession_t * const session, MolochPacket_t *
 /******************************************************************************/
 int moloch_packet_process_tcp(MolochSession_t * const session, MolochPacket_t * const packet)
 {
-    if (session->stopSPI || session->stopTCP)
+    if (session->stopTCP)
         return 1;
 
     struct tcphdr       *tcphdr = (struct tcphdr *)(packet->pkt + packet->payloadOffset);
@@ -482,7 +483,6 @@ LOCAL void *moloch_packet_thread(void *threadp)
                                   ip4->ip_dst.s_addr, udphdr->uh_dport);
             }
             break;
-            break;
         case IPPROTO_ICMP:
             if (packet->v6) {
                 moloch_session_id6(sessionId, ip6->ip6_src.s6_addr, 0,
@@ -543,6 +543,7 @@ LOCAL void *moloch_packet_thread(void *threadp)
                     }
                     session->stopSPI = 1;
                     session->stopSaving = 1;
+                    moloch_packet_tuple_add(session->h_hash, session->sessionId);
                 }
                 break;
             case IPPROTO_UDP:
@@ -556,6 +557,9 @@ LOCAL void *moloch_packet_thread(void *threadp)
             if (pluginsCbs & MOLOCH_PLUGIN_NEW)
                 moloch_plugins_cb_new(session);
         }
+
+        if (session->stopSPI)
+            continue;
 
         int dir;
         if (ip4->ip_v == 4) {
@@ -953,6 +957,10 @@ int moloch_packet_ip(MolochPacketBatch_t *batch, MolochPacket_t * const packet, 
     }
 
     packet->hash = moloch_session_hash(sessionId);
+
+    if (tupleHash.count > 0 && moloch_packet_tuple_find(packet->hash, sessionId))
+        return 1;
+
     uint32_t thread = packet->hash % config.packetThreads;
 
     if (DLL_COUNT(packet_, &packetQ[thread]) >= config.maxPacketsInQueue) {
@@ -1338,6 +1346,51 @@ int moloch_packet_frag_cmp(const void *keyv, const void *elementv)
     return memcmp(keyv, element->key, 10) == 0;
 }
 /******************************************************************************/
+int moloch_packet_tuple_cmp(const void *keyv, const void *elementv)
+{
+    MolochPacketTuple_t *tuple = (MolochPacketTuple_t *)elementv;
+
+    return memcmp(keyv, tuple->sessionId, MIN(((uint8_t *)keyv)[0], tuple->sessionId[0])) == 0;
+}
+/******************************************************************************/
+int moloch_packet_tuple_find(int hash, const char * const sessionId)
+{
+    int h = hash % tupleHash.size;
+    MOLOCH_LOCK(tupleHash.buckets[h].lock);
+    MolochPacketTuple_t *tuple;
+    HASH_FIND_HASH(tuple_, tupleHash, hash, sessionId, tuple);
+    int r = tuple != NULL;
+
+    MOLOCH_UNLOCK(tupleHash.buckets[h].lock);
+    return r;
+}
+/******************************************************************************/
+void moloch_packet_tuple_add(int hash, char *sessionId)
+{
+    int h = hash % tupleHash.size;
+    MOLOCH_LOCK(tupleHash.buckets[h].lock);
+    MolochPacketTuple_t *tuple;
+    HASH_FIND_HASH(tuple_, tupleHash, hash, sessionId, tuple);
+    if (!tuple) {
+        tuple = MOLOCH_TYPE_ALLOC(MolochPacketTuple_t);
+        tuple->sessionId = sessionId;
+        HASH_ADD_HASH(tuple_, tupleHash, hash, sessionId, tuple);
+    }
+    MOLOCH_UNLOCK(tupleHash.buckets[h].lock);
+}
+/******************************************************************************/
+void moloch_packet_tuple_remove(int hash, char *sessionId)
+{
+    int h = hash % tupleHash.size;
+    MOLOCH_LOCK(tupleHash.buckets[h].lock);
+    MolochPacketTuple_t *tuple;
+    HASH_FIND_HASH(tuple_, tupleHash, hash, sessionId, tuple);
+    if (tuple) {
+        HASH_REMOVE(tuple_, tupleHash, tuple);
+    }
+    MOLOCH_UNLOCK(tupleHash.buckets[h].lock);
+}
+/******************************************************************************/
 void moloch_packet_init()
 {
     pcapFileHeader.magic = 0xa1b2c3d4;
@@ -1451,6 +1504,12 @@ void moloch_packet_init()
 
     moloch_add_can_quit(moloch_packet_outstanding, "packet outstanding");
     moloch_add_can_quit(moloch_packet_frags_outstanding, "packet frags outstanding");
+
+    HASH_INIT(tuple_, tupleHash, moloch_session_hash, moloch_packet_tuple_cmp);
+    int i;
+    for (i = 0; i < tupleHash.size; i++) {
+        MOLOCH_LOCK_INIT(tupleHash.buckets[i].lock);
+    }
 }
 /******************************************************************************/
 uint64_t moloch_packet_dropped_packets()

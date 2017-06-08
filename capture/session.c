@@ -272,6 +272,8 @@ void moloch_session_free (MolochSession_t *session)
 
     moloch_packet_tcp_free(session);
 
+    if (session->stopSPI)
+        moloch_packet_tuple_remove(session->h_hash, session->sessionId);
     MOLOCH_TYPE_FREE(MolochSession_t, session);
 }
 /******************************************************************************/
