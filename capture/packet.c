@@ -84,7 +84,7 @@ typedef HASH_VAR(h_, MolochFragsHash_t, MolochFragsHead_t, 199337);
 MolochFragsHash_t          fragsHash;
 MolochFragsHead_t          fragsList;
 
-int moloch_packet_tuple_find(int hash, const char * const sessionId);
+int moloch_packet_tuple_find(uint32_t hash, const char * const sessionId);
 /******************************************************************************/
 void moloch_packet_free(MolochPacket_t *packet)
 {
@@ -1353,9 +1353,9 @@ int moloch_packet_tuple_cmp(const void *keyv, const void *elementv)
     return memcmp(keyv, tuple->sessionId, MIN(((uint8_t *)keyv)[0], tuple->sessionId[0])) == 0;
 }
 /******************************************************************************/
-int moloch_packet_tuple_find(int hash, const char * const sessionId)
+int moloch_packet_tuple_find(uint32_t hash, const char * const sessionId)
 {
-    int h = hash % tupleHash.size;
+    uint32_t h = hash % tupleHash.size;
     MOLOCH_LOCK(tupleHash.buckets[h].lock);
     MolochPacketTuple_t *tuple;
     HASH_FIND_HASH(tuple_, tupleHash, hash, sessionId, tuple);
@@ -1365,9 +1365,9 @@ int moloch_packet_tuple_find(int hash, const char * const sessionId)
     return r;
 }
 /******************************************************************************/
-void moloch_packet_tuple_add(int hash, char *sessionId)
+void moloch_packet_tuple_add(uint32_t hash, char *sessionId)
 {
-    int h = hash % tupleHash.size;
+    uint32_t h = hash % tupleHash.size;
     MOLOCH_LOCK(tupleHash.buckets[h].lock);
     MolochPacketTuple_t *tuple;
     HASH_FIND_HASH(tuple_, tupleHash, hash, sessionId, tuple);
@@ -1379,9 +1379,9 @@ void moloch_packet_tuple_add(int hash, char *sessionId)
     MOLOCH_UNLOCK(tupleHash.buckets[h].lock);
 }
 /******************************************************************************/
-void moloch_packet_tuple_remove(int hash, char *sessionId)
+void moloch_packet_tuple_remove(uint32_t hash, char *sessionId)
 {
-    int h = hash % tupleHash.size;
+    uint32_t h = hash % tupleHash.size;
     MOLOCH_LOCK(tupleHash.buckets[h].lock);
     MolochPacketTuple_t *tuple;
     HASH_FIND_HASH(tuple_, tupleHash, hash, sessionId, tuple);

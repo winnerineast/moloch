@@ -859,8 +859,8 @@ void     moloch_packet_thread_wake(int thread);
 void     moloch_packet_flush();
 void     moloch_packet_process_data(MolochSession_t *session, const uint8_t *data, int len, int which);
 void     moloch_packet_add_packet_ip(char *ip, int mode);
-void     moloch_packet_tuple_add(int hash, char *sessionId);
-void     moloch_packet_tuple_remove(int hash, char *sessionId);
+void     moloch_packet_tuple_add(uint32_t hash, char *sessionId);
+void     moloch_packet_tuple_remove(uint32_t hash, char *sessionId);
 
 void     moloch_packet_batch_init(MolochPacketBatch_t *batch);
 void     moloch_packet_batch_flush(MolochPacketBatch_t *batch);
